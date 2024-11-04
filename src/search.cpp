@@ -1819,7 +1819,8 @@ void update_all_stats(const Position&      pos,
     {
         moved_piece = pos.moved_piece(move);
         captured    = type_of(pos.piece_on(move.to_sq()));
-        captureHistory[moved_piece][move.to_sq()][captured] << -malus;
+        captureHistory[moved_piece][move.to_sq()][captured]
+          << -(1 + (move.to_sq() == bestMove.to_sq())) * malus;
     }
 }
 
