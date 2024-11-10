@@ -632,29 +632,36 @@ Value Search::Worker::search(
     // At this point, if excluded, skip straight to step 6, static eval. However,
     // to save indentation, we list the condition in all code between here and there.
 
+    bool refusedToCutEarly = false;
+
     // At non-PV nodes we check for an early TT cutoff
     if (!PvNode && !excludedMove && ttData.depth > depth - (ttData.value <= beta)
         && ttData.value != VALUE_NONE  // Can happen when !ttHit or when access race in probe()
-        && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER)))
+    )
     {
-        // If ttMove is quiet, update move sorting heuristics on TT hit (~2 Elo)
-        if (ttData.move && ttData.value >= beta)
+        if (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER))
         {
-            // Bonus for a quiet ttMove that fails high (~2 Elo)
-            if (!ttCapture)
-                update_quiet_histories(pos, ss, *this, ttData.move, stat_bonus(depth));
+            // If ttMove is quiet, update move sorting heuristics on TT hit (~2 Elo)
+            if (ttData.move && ttData.value >= beta)
+            {
+                // Bonus for a quiet ttMove that fails high (~2 Elo)
+                if (!ttCapture)
+                    update_quiet_histories(pos, ss, *this, ttData.move, stat_bonus(depth));
 
-            // Extra penalty for early quiet moves of
-            // the previous ply (~1 Elo on STC, ~2 Elo on LTC)
-            if (prevSq != SQ_NONE && (ss - 1)->moveCount <= 2 && !priorCapture)
-                update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
-                                              -stat_malus(depth + 1));
+                // Extra penalty for early quiet moves of
+                // the previous ply (~1 Elo on STC, ~2 Elo on LTC)
+                if (prevSq != SQ_NONE && (ss - 1)->moveCount <= 2 && !priorCapture)
+                    update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
+                                                  -stat_malus(depth + 1));
+            }
+
+            // Partial workaround for the graph history interaction problem
+            // For high rule50 counts don't produce transposition table cutoffs.
+            if (pos.rule50_count() < 90)
+                return ttData.value;
         }
-
-        // Partial workaround for the graph history interaction problem
-        // For high rule50 counts don't produce transposition table cutoffs.
-        if (pos.rule50_count() < 90)
-            return ttData.value;
+        else
+            refusedToCutEarly = true;
     }
 
     // Step 5. Tablebases probe
@@ -773,6 +780,9 @@ Value Search::Worker::search(
     improving = ss->staticEval > (ss - 2)->staticEval;
 
     opponentWorsening = ss->staticEval + (ss - 1)->staticEval > 2;
+
+    if (refusedToCutEarly)
+        goto moves_loop;
 
     // Step 7. Razoring (~1 Elo)
     // If eval is really low, check with qsearch if we can exceed alpha. If the
