@@ -792,7 +792,16 @@ Value Search::Worker::search(
              >= beta
         && eval >= beta && (!ttData.move || ttCapture) && beta > VALUE_TB_LOSS_IN_MAX_PLY
         && eval < VALUE_TB_WIN_IN_MAX_PLY)
-        return beta + (eval - beta) / 3;
+    {
+        if (depth <= 2 || ss->ttHit)
+            return beta + (eval - beta) / 3;
+        else
+        {
+            value = qsearch<NonPV>(pos, ss, alpha, beta);
+            if (value >= beta)
+                return value;
+        }
+    }
 
     // Step 9. Null move search with verification search (~35 Elo)
     if (cutNode && (ss - 1)->currentMove != Move::null() && eval >= beta
