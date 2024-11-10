@@ -790,8 +790,11 @@ Value Search::Worker::search(
         && eval - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening)
                - (ss - 1)->statScore / 272
              >= beta
-        && eval >= beta && (!ttData.move || ttCapture) && beta > VALUE_TB_LOSS_IN_MAX_PLY
-        && eval < VALUE_TB_WIN_IN_MAX_PLY)
+        && eval >= beta && (!ttData.move || ttCapture)
+        && !(!excludedMove && ttData.depth > depth - (ttData.value <= beta)
+             && ttData.value != VALUE_NONE
+             && !(ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER)))
+        && beta > VALUE_TB_LOSS_IN_MAX_PLY && eval < VALUE_TB_WIN_IN_MAX_PLY)
         return beta + (eval - beta) / 3;
 
     // Step 9. Null move search with verification search (~35 Elo)
